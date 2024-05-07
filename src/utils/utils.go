@@ -1,0 +1,5 @@
+package utils
+
+func Config() {
+
+}
