@@ -26,7 +26,12 @@ git clone https://github.com/N-Ignacio-Bouffanais/telgobot
 go mod tidy
 ```
 
-## Comfiguration
+* 3.Run the command
+```bash
+go run ./src/main.go
+```
+
+## Configuration
 
 Before run the script, you need to set the environment variables on .env.example, I suggest you to change the name of .env.example to .env
 ```bash
