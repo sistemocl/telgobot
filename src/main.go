@@ -1,16 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/chromedp/chromedp"
 	"github.com/joho/godotenv"
-	"github.com/tucnak/telebot"
+	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 func main() {
@@ -32,27 +32,6 @@ func main() {
 	fmt.Println("USER:", user)
 	fmt.Println("PASSWORD:", password)
 
-	bot, err := telebot.NewBot(telebot.Settings{
-		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
-		Token:  token,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	bot.Handle("/pagina1", func(m *telebot.Message) {
-		go handlePage(bot, m, "https://www.chess.com/login")
-	})
-
-	bot.Handle("/pagina2", func(m *telebot.Message) {
-		go handlePage(bot, m, "https://pkg.go.dev/gopkg.in/telebot.v3@v3.2.1")
-	})
-
-	log.Println("Bot is running. Press CTRL+C to exit.")
-	bot.Start()
-}
-
-func handlePage(bot *telebot.Bot, m *telebot.Message, url string) {
 	// Crea un contexto padre para el navegador
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -64,63 +43,78 @@ func handlePage(bot *telebot.Bot, m *telebot.Message, url string) {
 	ctx2, cancel2 := chromedp.NewContext(ctx)
 	defer cancel2()
 
-	// Utiliza WaitGroup para sincronizar las goroutines
-	var wg sync.WaitGroup
-	wg.Add(2)
+	bot, err := tb.NewBot(tb.Settings{
+		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+		Token:  token,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Ejecuta la primera goroutine para la primera página
-	go func() {
-		defer wg.Done()
-		if err := navigateAndSendMessage(ctx1, bot, m, url); err != nil {
-			log.Println("Error en la goroutine 1:", err)
-		}
-	}()
+	bot.Handle("/pagina1", func(m *tb.Message) {
+		go func() {
+			if err := chromedp.Run(ctx1,
+				chromedp.Navigate("https://www.chess.com/login"),
+			); err != nil {
+				log.Println(err)
+				return
+			}
 
-	// Ejecuta la segunda goroutine para la segunda página
-	go func() {
-		defer wg.Done()
-		if err := Dafiti(ctx2, bot, m, url); err != nil {
-			log.Println("Error en la goroutine 2:", err)
-		}
-	}()
+			bot.Send(m.Sender, "Se navegó a la página 1.")
+		}()
+	})
 
-	// Espera a que ambas goroutines finalicen
-	wg.Wait()
+	bot.Handle("/pagina2", func(m *tb.Message) {
+		go Dafiti(ctx2, bot, m, "https://pkg.go.dev/gopkg.in/telebot.v3@v3.2.1")
+	})
+
+	log.Println("Bot is running. Press CTRL+C to exit.")
+	bot.Start()
 }
 
-func navigateAndSendMessage(ctx context.Context, bot *telebot.Bot, m *telebot.Message, url string) error {
+// func handlePage(bot *tb.Bot, m *tb.Message, url string) {
+
+// 	// Ejecuta la primera goroutine para la primera página
+// 	go func() {
+// 		if err := navigateAndSendMessage(ctx1, bot, m, url); err != nil {
+// 			log.Println("Error en la goroutine 1:", err)
+// 		}
+// 	}()
+
+// 	// Ejecuta la segunda goroutine para la segunda página
+// 	go func() {
+// 		if err := Dafiti(ctx2, bot, m, url); err != nil {
+// 			log.Println("Error cargando Dafiti:", err)
+// 		}
+// 	}()
+// }
+
+func Dafiti(ctx context.Context, bot *tb.Bot, m *tb.Message, url string) error {
 	// Crea un navegador Chrome
 	ctx, cancel := chromedp.NewContext(ctx)
 	defer cancel()
 
-	// Navega a la página
-	if err := chromedp.Run(ctx, chromedp.Navigate(url)); err != nil {
-		return err
-	}
-
-	// Envía un mensaje de respuesta
-	msg := "Se ha navegado a la página: " + url
-	if _, err := bot.Send(m.Chat, msg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func Dafiti(ctx context.Context, bot *telebot.Bot, m *telebot.Message, url string) error {
-	// Crea un navegador Chrome
-	ctx, cancel := chromedp.NewContext(ctx)
-	defer cancel()
+	var buf []byte
 
 	// Navega a la página
-	if err := chromedp.Run(ctx, chromedp.Navigate(url)); err != nil {
-		return err
+	task := chromedp.Tasks{
+		chromedp.Navigate(url),
+		chromedp.CaptureScreenshot(&buf),
 	}
 
-	// Envía un mensaje de respuesta
-	msg := "@" + m.Sender.Username
-	if _, err := bot.Send(m.Chat, msg); err != nil {
-		return err
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Crear un lector para el buffer de bytes
+	reader := bytes.NewReader(buf)
+
+	// Enviar la imagen como un mensaje de foto
+	photo := &tb.Photo{File: tb.FromReader(reader)}
+	_, err = bot.Send(m.Chat, photo)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	return nil

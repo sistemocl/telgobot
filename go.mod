@@ -21,4 +21,5 @@ require (
 	github.com/tucnak/telebot v2.0.0+incompatible
 	golang.org/x/sys v0.16.0 // indirect
 	gopkg.in/telebot.v3 v3.2.1
+	gopkg.in/tucnak/telebot.v2 v2.5.0
 )
