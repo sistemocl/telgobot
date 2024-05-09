@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -54,6 +55,25 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Mapa para almacenar los comandos y sus descripciones
+	commands := map[string]string{
+		"/Dafiti": "Abre el sitio web de Dafiti.",
+		"/SBS":    "Abre el sitio web de SBS.",
+	}
+
+	// Manejador de comando para mostrar todos los comandos disponibles
+	bot.Handle("/comandos", func(m *tb.Message) {
+		var reply strings.Builder
+		reply.WriteString("Comandos disponibles:\n")
+		for cmd, desc := range commands {
+			reply.WriteString(cmd)
+			reply.WriteString(" - ")
+			reply.WriteString(desc)
+			reply.WriteString("\n")
+		}
+		bot.Send(m.Chat, reply.String())
+	})
+
 	bot.Handle("/pagina1", func(m *tb.Message) {
 		go func() {
 			if err := chromedp.Run(ctx1,
@@ -80,10 +100,6 @@ func main() {
 }
 
 func Dafiti(ctx context.Context, bot *tb.Bot, m *tb.Message, url string) error {
-
-	// Crea un navegador Chrome
-	ctx, cancel := chromedp.NewContext(ctx)
-	defer cancel()
 
 	var buf []byte
 
@@ -112,9 +128,6 @@ func Dafiti(ctx context.Context, bot *tb.Bot, m *tb.Message, url string) error {
 }
 
 func SBS(ctx context.Context, bot *tb.Bot, m *tb.Message, url string) error {
-	// Crea un navegador Chrome
-	ctx, cancel := chromedp.NewContext(ctx)
-	defer cancel()
 
 	var buf []byte
 
