@@ -29,9 +29,9 @@ func main() {
 	}
 
 	// Utilizar las variables de entorno
-	fmt.Println("TOKEN:", token)
-	fmt.Println("USER:", user)
-	fmt.Println("PASSWORD:", password)
+	// fmt.Println("TOKEN:", token)
+	// fmt.Println("USER:", user)
+	// fmt.Println("PASSWORD:", password)
 
 	// Crea un contexto padre para el navegador
 	ctx, cancel := chromedp.NewContext(context.Background())
@@ -47,6 +47,9 @@ func main() {
 	ctx3, cancel3 := chromedp.NewContext(ctx)
 	defer cancel3()
 
+	// ctx4, cancel4 := chromedp.NewContext(ctx)
+	// defer cancel4()
+
 	bot, err := tb.NewBot(tb.Settings{
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
 		Token:  token,
@@ -57,8 +60,10 @@ func main() {
 
 	// Mapa para almacenar los comandos y sus descripciones
 	commands := map[string]string{
-		"/Dafiti": "Abre el sitio web de Dafiti.",
-		"/SBS":    "Abre el sitio web de SBS.",
+		"/Dafiti":  "Abre el sitio web de Dafiti.",
+		"/SBS":     "Abre el sitio web de SBS.",
+		"/flr":     "Abre el sitio de FLR.",
+		"flr_info": "Retorna información delicada del sitio",
 	}
 
 	// Manejador de comando para mostrar todos los comandos disponibles
@@ -74,17 +79,8 @@ func main() {
 		bot.Send(m.Chat, reply.String())
 	})
 
-	bot.Handle("/pagina1", func(m *tb.Message) {
-		go func() {
-			if err := chromedp.Run(ctx1,
-				chromedp.Navigate("https://www.chess.com/login"),
-			); err != nil {
-				log.Println(err)
-				return
-			}
-
-			bot.Send(m.Sender, "Se navegó a la página 1.")
-		}()
+	bot.Handle("/flr", func(m *tb.Message) {
+		go flr(ctx1, bot, m, "https://www.chess.com/login", user, password)
 	})
 
 	bot.Handle("/Dafiti", func(m *tb.Message) {
@@ -95,8 +91,47 @@ func main() {
 		go Dafiti(ctx3, bot, m, "https://www.youtube.com/")
 	})
 
-	log.Println("Bot is running. Press CTRL+C to exit.")
+	// bot.Handle("/flr_info", func(m *tb.Message) {
+	// 	go flr_info(ctx4, bot, m, "https://www.chess.com/login", user, password)
+	// })
+
+	log.Println("Chat Bot is running. Press CTRL+C to exit.")
 	bot.Start()
+}
+
+func flr(ctx context.Context, bot *tb.Bot, m *tb.Message, url string, user string, password string) error {
+
+	var buf []byte
+
+	// Navega a la página
+	task := chromedp.Tasks{
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("input[type=password]", chromedp.ByQuery),
+		chromedp.SendKeys("input[name=_username]", user, chromedp.ByQuery),
+		chromedp.SendKeys("input[name=_password]", password, chromedp.ByQuery),
+		chromedp.Click("button[type=submit]", chromedp.ByQuery),
+		chromedp.Sleep(2 * time.Second),
+		chromedp.FullScreenshot(&buf, 90),
+	}
+
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Crear un lector para el buffer de bytes
+	reader := bytes.NewReader(buf)
+
+	//msg := "@" + m.Sender.Username
+
+	// Enviar la imagen como un mensaje de foto
+	photo := &tb.Photo{File: tb.FromReader(reader)}
+	_, err = bot.Send(m.Chat, photo)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
 }
 
 func Dafiti(ctx context.Context, bot *tb.Bot, m *tb.Message, url string) error {
@@ -154,3 +189,27 @@ func SBS(ctx context.Context, bot *tb.Bot, m *tb.Message, url string) error {
 
 	return nil
 }
+
+// func flr_info(ctx context.Context, bot *tb.Bot, m *tb.Message, url string, user string, password string) error {
+
+// 	// Navega a la página
+// 	task := chromedp.Tasks{
+// 		chromedp.Navigate(url),
+// 		chromedp.WaitVisible("input[type=password]", chromedp.ByQuery),
+// 		chromedp.SendKeys("input[name=_username]", user, chromedp.ByQuery),
+// 		chromedp.SendKeys("input[name=_password]", password, chromedp.ByQuery),
+// 		chromedp.Click("button[type=submit]", chromedp.ByQuery),
+// 		chromedp.Sleep(2 * time.Second),
+// 	}
+
+// 	err := chromedp.Run(ctx, task)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	msg := "@" + m.Sender.Username
+
+// 	bot.Send(m.Chat, msg)
+
+// 	return nil
+// }
