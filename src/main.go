@@ -16,14 +16,13 @@ import (
 )
 
 var (
-	lastCommandTime map[int]time.Time
-	lastCommandLock sync.Mutex
+	userLastCommand map[int]map[string]time.Time
+	mu              sync.Mutex
 )
 
 func main() {
-	lastCommandTime = make(map[int]time.Time)
+	userLastCommand = make(map[int]map[string]time.Time)
 
-	// Cargar variables de entorno
 	godotenv.Load()
 	token := os.Getenv("BOT_TOKEN")
 	user := os.Getenv("USER")
@@ -31,7 +30,6 @@ func main() {
 	admin_user := os.Getenv("ADMIN_USER")
 	admin_pass := os.Getenv("ADMIN_PASS")
 
-	// Verificar si las variables de entorno están definidas
 	if token == "" || user == "" || password == "" {
 		fmt.Println("No se han definido las tres variables de entorno: TOKEN, USER y PASSWORD")
 		return
@@ -45,15 +43,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Crear un contexto padre
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
 
 	commands := map[string]string{
 		"/tiendas": "Abre el sitio web de Tiendas.",
-		// "/SBS":      "Abre el sitio web de SBS.",
-		//"/Dafiti": "Abre el sitio web de Dafiti.",
-		"/flr": "Abre el sitio de FLR.",
+		"/flr":     "Abre el sitio de FLR.",
+		"test":     "Abre una pagina de ejemplo",
 	}
 
 	bot.Handle("/comandos", func(m *tb.Message) {
@@ -70,80 +66,129 @@ func main() {
 
 	bot.Handle("/tiendas", func(m *tb.Message) {
 		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/tiendas"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
 		if command == "/tiendas" {
-			if canExecuteCommand(int(m.Sender.ID)) {
-				screenshot, err := Tiendas(ctx, "http://10.115.43.82:3002/login", admin_user, admin_pass)
-				if err != nil {
-					log.Printf("Error al tomar captura de pantalla: %v", err)
-					return
-				}
-				Photos_response(screenshot, m, bot)
-			} else {
-				bot.Send(m.Sender, "Por favor espera al menos 15 segundos antes de volver a ejecutar el comando.")
+			screenshot, err := Tiendas(ctx, "http://10.115.43.82:3002/login", admin_user, admin_pass)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
 			}
+			Photos_response(screenshot, m, bot)
 		} else {
 			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
 		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/tiendas"] = time.Now()
+		mu.Unlock()
+
+	})
+
+	bot.Handle("/flr", func(m *tb.Message) {
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/flr"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
+		if command == "/flr" {
+			screenshot, err := FLR(ctx, "http://10.115.43.82:3002/login", user, password)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
+			}
+			Photos_response(screenshot, m, bot)
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/flr"] = time.Now()
+		mu.Unlock()
 
 	})
 
 	bot.Handle("/test", func(m *tb.Message) {
 		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/test"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
 		if command == "/test" {
-			if canExecuteCommand(int(m.Sender.ID)) {
-				screenshot, err := Example(ctx, "https://chatgpt.com/")
-				if err != nil {
-					log.Printf("Error al tomar captura de pantalla: %v", err)
-					return
-				}
-				Photos_response(screenshot, m, bot)
-			} else {
-				bot.Send(m.Sender, "Por favor espera al menos 15 segundos antes de volver a ejecutar el comando.")
+			screenshot, err := Example(ctx, "https://chatgpt.com/")
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
 			}
+			Photos_response(screenshot, m, bot)
 		} else {
 			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
 		}
+
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/test"] = time.Now()
+		mu.Unlock()
+
 	})
 
 	bot.Handle("/test2", func(m *tb.Message) {
 		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/test2"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
 		if command == "/test2" {
-			if canExecuteCommand(int(m.Sender.ID)) {
-				screenshot, err := Example(ctx, "https://www.perplexity.ai/")
-				if err != nil {
-					log.Printf("Error al tomar captura de pantalla: %v", err)
-					return
-				}
-				Photos_response(screenshot, m, bot)
-			} else {
-				bot.Send(m.Sender, "Por favor espera al menos 15 segundos antes de volver a ejecutar el comando.")
+			screenshot, err := Example(ctx, "https://www.perplexity.ai/")
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
 			}
+			Photos_response(screenshot, m, bot)
 		} else {
 			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
 		}
+
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/test2"] = time.Now()
+		mu.Unlock()
+
 	})
 
 	go bot.Start()
 
 	select {}
-}
-
-func canExecuteCommand(userID int) bool {
-	lastCommandLock.Lock()
-	defer lastCommandLock.Unlock()
-
-	lastTime, ok := lastCommandTime[userID]
-	if !ok {
-		lastCommandTime[userID] = time.Now()
-		return true
-	}
-
-	elapsed := time.Since(lastTime)
-	if elapsed >= 20*time.Second {
-		lastCommandTime[userID] = time.Now()
-		return true
-	}
-	return false
 }
 
 func Photos_response(screenshot []byte, m *tb.Message, bot *tb.Bot) {
@@ -163,7 +208,6 @@ func Photos_response(screenshot []byte, m *tb.Message, bot *tb.Bot) {
 func FLR(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
-	// Navega a la página
 	task := chromedp.Tasks{
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/login"),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
