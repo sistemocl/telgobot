@@ -186,6 +186,7 @@ func main() {
 
 	})
 
+	log.Println("Bot is running. Press CTRL+C to exit.")
 	go bot.Start()
 
 	select {}

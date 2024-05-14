@@ -4,7 +4,7 @@ This project implements a chat bot using Telegram and Golang, telebot, chromedp 
 
 ## Requirements
 - Golang
-- telebot
+- telebot.v2
 - chromedp
 - .env
 
@@ -31,6 +31,20 @@ go mod tidy
 go run ./src/main.go
 ```
 
+## Another way to install 
+* 1.Create a folder for your project and named, this name will be the same for the next command.
+* 2.Run the command
+```bash
+go mod init your_project_name
+```
+* 3.Create a folder inside named src, and inside src create a file named main.go
+* 4.Create a .env file with credentials.
+* 5.Run the command:
+```bash
+go run ./src/main.go
+```
+* 6 If all was correct well, you must see a message in your terminal like:"Bot is running. Press CTRL+C to exit."
+
 ## Configuration
 
 Before run the script, you need to set the environment variables on .env.example, I suggest you to change the name of .env.example to .env
@@ -38,6 +52,8 @@ Before run the script, you need to set the environment variables on .env.example
 BOT_TOKEN="fwejnviewnvwenvwenvja"
 PASSWORD="password"
 USER="USER"
+ADMIN_USER="admin"
+ADMIN_PASS=""
 ```
 
 ## Telegram Token
