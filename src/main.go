@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 	"github.com/joho/godotenv"
 	tb "gopkg.in/tucnak/telebot.v2"
@@ -43,13 +44,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
 	commands := map[string]string{
 		"/tiendas": "Abre el sitio web de Tiendas.",
 		"/flr":     "Abre el sitio de FLR.",
-		"test":     "Abre una pagina de ejemplo",
+		"/test":    "Abre una pagina de ejemplo",
 	}
 
 	bot.Handle("/comandos", func(m *tb.Message) {
@@ -65,6 +63,10 @@ func main() {
 	})
 
 	bot.Handle("/tiendas", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
 		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
 
 		mu.Lock()
@@ -92,9 +94,15 @@ func main() {
 		userLastCommand[int(m.Sender.ID)]["/tiendas"] = time.Now()
 		mu.Unlock()
 
+		cancel()
+
 	})
 
 	bot.Handle("/flr", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
 		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
 
 		mu.Lock()
@@ -109,7 +117,7 @@ func main() {
 			return
 		}
 		if command == "/flr" {
-			screenshot, err := FLR(ctx, "http://10.115.43.82:3002/login", user, password)
+			screenshot, err := FLR(ctx, "http://10.115.43.118:3008/il/grafana/login", user, password)
 			if err != nil {
 				log.Printf("Error al tomar captura de pantalla: %v", err)
 				return
@@ -121,10 +129,15 @@ func main() {
 		mu.Lock()
 		userLastCommand[int(m.Sender.ID)]["/flr"] = time.Now()
 		mu.Unlock()
+		cancel()
 
 	})
 
 	bot.Handle("/test", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
 		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
 
 		mu.Lock()
@@ -155,37 +168,6 @@ func main() {
 
 	})
 
-	bot.Handle("/test2", func(m *tb.Message) {
-		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
-
-		mu.Lock()
-		if userLastCommand[int(m.Sender.ID)] == nil {
-			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
-		}
-		lastExecTime := userLastCommand[int(m.Sender.ID)]["/test2"]
-		mu.Unlock()
-
-		if time.Since(lastExecTime).Seconds() < 15 {
-			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
-			return
-		}
-		if command == "/test2" {
-			screenshot, err := Example(ctx, "https://www.perplexity.ai/")
-			if err != nil {
-				log.Printf("Error al tomar captura de pantalla: %v", err)
-				return
-			}
-			Photos_response(screenshot, m, bot)
-		} else {
-			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
-		}
-
-		mu.Lock()
-		userLastCommand[int(m.Sender.ID)]["/test2"] = time.Now()
-		mu.Unlock()
-
-	})
-
 	log.Println("Bot is running. Press CTRL+C to exit.")
 	go bot.Start()
 
@@ -210,14 +192,18 @@ func FLR(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
 	task := chromedp.Tasks{
-		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/login"),
+		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
 		chromedp.SendKeys("input[name=password]", password, chromedp.BySearch),
-		chromedp.Click("button[aria-label=Login button]", chromedp.BySearch),
+		chromedp.Click(`button[aria-label="Login button"]`, chromedp.BySearch),
 		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/sDmADcSIk/mle-flr?orgId=1&refresh=30s"),
-		chromedp.Sleep(2 * time.Second),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(3 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
@@ -233,6 +219,7 @@ func Tiendas(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
 	task := chromedp.Tasks{
+		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -241,8 +228,10 @@ func Tiendas(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.82:3002/dashboards"),
+		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.82:3002/d/yPbn4f2Sk/consolidado-v3-remoto?orgId=4&refresh=1m"),
-		chromedp.Sleep(2 * time.Second),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
@@ -270,3 +259,5 @@ func Example(ctx context.Context, url string) ([]byte, error) {
 
 	return buf, nil
 }
+
+//emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
