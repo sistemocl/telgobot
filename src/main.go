@@ -241,7 +241,7 @@ func main() {
 		cancel()
 	})
 
-	log.Println("Bot is running. Press CTRL+C to exit.")
+	log.Println("ChatBot is running. Press CTRL+C to exit.")
 	go bot.Start()
 
 	select {}
@@ -276,7 +276,7 @@ func MLE(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/sDmADcSIk/mle-flr?orgId=1&refresh=30s"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(4 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
@@ -358,7 +358,7 @@ func SBS(ctx context.Context, url, user, password string) ([]byte, error) {
 		//chromedp.Navigate("http://10.115.43.24:3000/"),
 		chromedp.Navigate("http://10.115.43.24:3000/d/LRJXk-NSk/reporte-de-cierre?orgId=4&from=now-7h&to=now&var-PpsId=All"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(1 * time.Second),
+		chromedp.Sleep(2 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
@@ -384,7 +384,7 @@ func SBS_General(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.24:3000/d/1-Uft5w4k/greymatter-6-1-streaming-store-orders-dashboard?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(1 * time.Second),
+		chromedp.Sleep(3 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
