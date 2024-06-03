@@ -52,6 +52,7 @@ func main() {
 		"/sbs":     " Reporte de cierre SBS",
 		"/sbs2":    "SBS General",
 		"/soporte": "Grafana Soporte FLR",
+		"/kpi":     "Kpi SBS",
 	}
 
 	bot.Handle("/comandos", func(m *tb.Message) {
@@ -85,6 +86,7 @@ func main() {
 			return
 		}
 		if command == "/tiendas" {
+			bot.Send(m.Chat, " Tomando captura")
 			screenshot, err := Tiendas(ctx, "http://10.115.43.82:3002/login", admin_user, admin_pass)
 			if err != nil {
 				log.Printf("Error al tomar captura de pantalla: %v", err)
@@ -121,6 +123,7 @@ func main() {
 			return
 		}
 		if command == "/mle" {
+			bot.Send(m.Chat, " Tomando captura")
 			screenshot, err := MLE(ctx, "http://10.115.43.118:3008/il/grafana/login", user, password)
 			if err != nil {
 				log.Printf("Error al tomar captura de pantalla: %v", err)
@@ -156,6 +159,7 @@ func main() {
 			return
 		}
 		if command == "/soporte" {
+			bot.Send(m.Chat, " Tomando captura")
 			screenshot, err := Soporte_FLR(ctx, "http://10.115.43.118:3008/il/grafana/login", user, password)
 			if err != nil {
 				log.Printf("Error al tomar captura de pantalla: %v", err)
@@ -191,6 +195,7 @@ func main() {
 			return
 		}
 		if command == "/sbs" {
+			bot.Send(m.Chat, " Tomando captura")
 			screenshot, err := SBS(ctx, "http://10.115.43.24:3000/login", admin2, pass2)
 			if err != nil {
 				log.Printf("Error al tomar captura de pantalla: %v", err)
@@ -226,6 +231,7 @@ func main() {
 			return
 		}
 		if command == "/sbs2" {
+			bot.Send(m.Chat, " Tomando captura")
 			screenshot, err := SBS_General(ctx, "http://10.115.43.24:3000/login", admin2, pass2)
 			if err != nil {
 				log.Printf("Error al tomar captura de pantalla: %v", err)
@@ -239,6 +245,43 @@ func main() {
 		userLastCommand[int(m.Sender.ID)]["/sbs2"] = time.Now()
 		mu.Unlock()
 		cancel()
+	})
+
+	bot.Handle("/kpi", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/kpi"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
+		if command == "/kpi" {
+			bot.Send(m.Chat, " Tomando captura")
+			//bot.Send(m.Chat, "👉👈")
+			screenshot, err := kpi(ctx, "http://10.115.43.24:3000/login", admin2, pass2)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
+			}
+			Photos_response(screenshot, m, bot)
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/kpi"] = time.Now()
+		mu.Unlock()
+		cancel()
+
 	})
 
 	log.Println("ChatBot is running. Press CTRL+C to exit.")
@@ -276,7 +319,7 @@ func MLE(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/sDmADcSIk/mle-flr?orgId=1&refresh=30s"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(4 * time.Second),
+		chromedp.Sleep(15 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
@@ -385,6 +428,33 @@ func SBS_General(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.Navigate("http://10.115.43.24:3000/d/1-Uft5w4k/greymatter-6-1-streaming-store-orders-dashboard?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Sleep(3 * time.Second),
+		chromedp.FullScreenshot(&buf, 90),
+	}
+
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return buf, nil
+}
+
+func kpi(ctx context.Context, url, user, password string) ([]byte, error) {
+	var buf []byte
+
+	task := chromedp.Tasks{
+		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
+		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
+		chromedp.SendKeys("input[name=password]", password, chromedp.BySearch),
+		chromedp.Click(`button[aria-label="Login button"]`, chromedp.BySearch),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
+		//chromedp.Navigate("http://10.115.43.24:3000/"),
+		chromedp.Navigate("http://10.115.43.24:3000/d/F_8FShESk/kpi-de-seguimiento?orgId=4&refresh=1m"),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(7 * time.Second),
 		chromedp.FullScreenshot(&buf, 90),
 	}
 
