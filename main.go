@@ -23,7 +23,11 @@ var (
 
 func main() {
 	userLastCommand = make(map[int]map[string]time.Time)
-
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("error al cargar el archivo .env")
+		return
+	}
 	godotenv.Load()
 	token := os.Getenv("BOT_TOKEN")
 	user := os.Getenv("USER")
@@ -47,12 +51,15 @@ func main() {
 	}
 
 	commands := map[string]string{
-		"/tiendas": "Consolidado de tiendas",
-		"/mle":     "Grafana MLE FLR",
-		"/sbs":     " Reporte de cierre SBS",
-		"/sbs2":    "SBS General",
-		"/soporte": "Grafana Soporte FLR",
-		"/kpi":     "Kpi SBS",
+		"/tiendas":    "Consolidado de tiendas",
+		"/mle":        "Grafana MLE FLR",
+		"/sbs":        " Reporte de cierre SBS",
+		"/sbs2":       "SBS General",
+		"/soporte":    "Grafana Soporte FLR",
+		"/kpi":        "Kpi SBS",
+		"/servidores": "Grafana FLR servidores",
+		"/s11":        "panel S11",
+		"/operacion":  "FLR operacion",
 	}
 
 	bot.Handle("/comandos", func(m *tb.Message) {
@@ -283,6 +290,113 @@ func main() {
 		cancel()
 
 	})
+	bot.Handle("/servidores", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/servidores"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
+		if command == "/servidores" {
+			bot.Send(m.Chat, " Tomando captura")
+			screenshot, err := Servidores(ctx, "http://10.115.43.118:3008/il/grafana/login", user, password)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
+			}
+			Photos_response(screenshot, m, bot)
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/servidores"] = time.Now()
+		mu.Unlock()
+		cancel()
+
+	})
+
+	bot.Handle("/s11", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/s11"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
+		if command == "/s11" {
+			bot.Send(m.Chat, " Tomando captura")
+			screenshot, err := S11(ctx, "http://10.115.43.118:3008/il/grafana/login", user, password)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
+			}
+			Photos_response(screenshot, m, bot)
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/s11"] = time.Now()
+		mu.Unlock()
+		cancel()
+
+	})
+
+	bot.Handle("/operacion", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/operacion"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
+		if command == "/operacion" {
+			bot.Send(m.Chat, " Tomando captura")
+			screenshot, err := Operacion(ctx, "http://10.115.43.118:3008/il/grafana/login", user, password)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
+			}
+			Photos_response(screenshot, m, bot)
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/operacion"] = time.Now()
+		mu.Unlock()
+		cancel()
+
+	})
 
 	log.Println("ChatBot is running. Press CTRL+C to exit.")
 	go bot.Start()
@@ -294,12 +408,8 @@ func Photos_response(screenshot []byte, m *tb.Message, bot *tb.Bot) {
 	photo := &tb.Photo{
 		File: tb.FromReader(bytes.NewReader(screenshot)),
 	}
-	mention := ""
-	if m.Sender.Username != "" {
-		mention = "@" + m.Sender.Username
-	} else {
-		mention = m.Sender.FirstName
-	}
+	mention := "@" + m.Sender.FirstName
+
 	bot.Send(m.Chat, mention+" Aqui tienes:")
 	bot.SendAlbum(m.Chat, tb.Album{photo})
 }
@@ -308,7 +418,7 @@ func MLE(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
 	task := chromedp.Tasks{
-		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -320,7 +430,7 @@ func MLE(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/sDmADcSIk/mle-flr?orgId=1&refresh=30s"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Sleep(6 * time.Second),
-		chromedp.FullScreenshot(&buf, 90),
+		chromedp.FullScreenshot(&buf, 100),
 	}
 
 	err := chromedp.Run(ctx, task)
@@ -335,7 +445,7 @@ func Soporte_FLR(ctx context.Context, url, user, password string) ([]byte, error
 	var buf []byte
 
 	task := chromedp.Tasks{
-		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -346,8 +456,8 @@ func Soporte_FLR(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/F2yEI13Vk/flr-operacion?orgId=1&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(4 * time.Second),
-		chromedp.FullScreenshot(&buf, 90),
+		chromedp.Sleep(3 * time.Second),
+		chromedp.FullScreenshot(&buf, 100),
 	}
 
 	err := chromedp.Run(ctx, task)
@@ -362,7 +472,7 @@ func Tiendas(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
 	task := chromedp.Tasks{
-		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -375,7 +485,7 @@ func Tiendas(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Navigate("http://10.115.43.82:3002/d/yPbn4f2Sk/consolidado-v3-remoto?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Sleep(3 * time.Second),
-		chromedp.FullScreenshot(&buf, 90),
+		chromedp.FullScreenshot(&buf, 100),
 	}
 
 	err := chromedp.Run(ctx, task)
@@ -390,7 +500,7 @@ func SBS(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
 	task := chromedp.Tasks{
-		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -402,7 +512,7 @@ func SBS(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Navigate("http://10.115.43.24:3000/d/LRJXk-NSk/reporte-de-cierre?orgId=4&from=now-7h&to=now&var-PpsId=All"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Sleep(3 * time.Second),
-		chromedp.FullScreenshot(&buf, 90),
+		chromedp.FullScreenshot(&buf, 100),
 	}
 
 	err := chromedp.Run(ctx, task)
@@ -417,7 +527,7 @@ func SBS_General(ctx context.Context, url, user, password string) ([]byte, error
 	var buf []byte
 
 	task := chromedp.Tasks{
-		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -428,7 +538,7 @@ func SBS_General(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.Navigate("http://10.115.43.24:3000/d/1-Uft5w4k/greymatter-6-1-streaming-store-orders-dashboard?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Sleep(3 * time.Second),
-		chromedp.FullScreenshot(&buf, 90),
+		chromedp.FullScreenshot(&buf, 100),
 	}
 
 	err := chromedp.Run(ctx, task)
@@ -443,7 +553,7 @@ func kpi(ctx context.Context, url, user, password string) ([]byte, error) {
 	var buf []byte
 
 	task := chromedp.Tasks{
-		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
 		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
@@ -454,8 +564,89 @@ func kpi(ctx context.Context, url, user, password string) ([]byte, error) {
 		//chromedp.Navigate("http://10.115.43.24:3000/"),
 		chromedp.Navigate("http://10.115.43.24:3000/d/F_8FShESk/kpi-de-seguimiento?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(5 * time.Second),
-		chromedp.FullScreenshot(&buf, 90),
+		chromedp.Sleep(6 * time.Second),
+		chromedp.FullScreenshot(&buf, 100),
+	}
+
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return buf, nil
+}
+
+func Servidores(ctx context.Context, url, user, password string) ([]byte, error) {
+	var buf []byte
+
+	task := chromedp.Tasks{
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
+		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
+		chromedp.SendKeys("input[name=password]", password, chromedp.BySearch),
+		chromedp.Click(`button[aria-label="Login button"]`, chromedp.BySearch),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/jc_66BSIz/servidores?orgId=1&refresh=1m"),
+		chromedp.WaitVisible(`body`, chromedp.ByQuery),
+		chromedp.Sleep(3 * time.Second),
+		chromedp.FullScreenshot(&buf, 100),
+	}
+
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return buf, nil
+}
+
+func S11(ctx context.Context, url, user, password string) ([]byte, error) {
+	var buf []byte
+
+	task := chromedp.Tasks{
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
+		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
+		chromedp.SendKeys("input[name=password]", password, chromedp.BySearch),
+		chromedp.Click(`button[aria-label="Login button"]`, chromedp.BySearch),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/G-6ygS3Vk/flr-s11-mcu?orgId=1&refresh=1m"),
+		chromedp.WaitVisible(`body`, chromedp.ByQuery),
+		chromedp.Sleep(3 * time.Second),
+		chromedp.FullScreenshot(&buf, 100),
+	}
+
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return buf, nil
+}
+
+func Operacion(ctx context.Context, url, user, password string) ([]byte, error) {
+	var buf []byte
+
+	task := chromedp.Tasks{
+		emulation.SetDeviceMetricsOverride(2560, 1440, 1, false),
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
+		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
+		chromedp.SendKeys("input[name=password]", password, chromedp.BySearch),
+		chromedp.Click(`button[aria-label="Login button"]`, chromedp.BySearch),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/?orgId=1"),
+		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/F2yEI13Vk/flr-operacion?orgId=1&from=now-7h&to=now&refresh=1m"),
+		chromedp.WaitVisible(`body`, chromedp.ByQuery),
+		chromedp.Sleep(3 * time.Second),
+		chromedp.FullScreenshot(&buf, 100),
 	}
 
 	err := chromedp.Run(ctx, task)
