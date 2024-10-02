@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 	"sync"
+	"tel_gobot/scrapper"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -60,6 +62,7 @@ func main() {
 		"/servidores": "Grafana FLR servidores",
 		"/s11":        "panel S11",
 		"/operacion":  "FLR operacion",
+		"/colas":      "colas pps",
 	}
 
 	bot.Handle("/comandos", func(m *tb.Message) {
@@ -398,6 +401,33 @@ func main() {
 
 	})
 
+	bot.Handle("/colas", func(m *tb.Message) {
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		// Obtener los datos desde el scrapper
+		data, err := scrapper.FetchDataFromTable("http://localhost:8181/mnesia/tables/ppsinfo")
+		if err != nil {
+			log.Printf("Error calling FetchQueueSizeData: %v\n", err)
+			bot.Send(m.Chat, "Ocurrió un error al obtener los datos.")
+			return
+		}
+
+		// Convertir los datos a formato JSON
+		jsonData, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			log.Printf("Error converting data to JSON: %v\n", err)
+			bot.Send(m.Chat, "Ocurrió un error al convertir los datos a JSON.")
+			return
+		}
+
+		// Enviar el JSON al chat como mensaje
+		if command == "/colas" {
+			bot.Send(m.Chat, string(jsonData))
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+	})
+
 	log.Println("ChatBot is running. Press CTRL+C to exit.")
 	go bot.Start()
 
@@ -430,7 +460,7 @@ func MLE(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/sDmADcSIk/mle-flr?orgId=1&refresh=30s"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(4 * time.Second),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -458,7 +488,7 @@ func Soporte_FLR(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/F2yEI13Vk/flr-operacion?orgId=1&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(4 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -486,7 +516,7 @@ func Tiendas(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.82:3002/d/yPbn4f2Sk/consolidado-v3-remoto?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(4 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -514,7 +544,7 @@ func SBS(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.24:3000/d/LRJXk-NSk/reporte-de-cierre?orgId=4&from=now-7h&to=now&var-PpsId=All"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -540,7 +570,7 @@ func SBS_General(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.24:3000/d/1-Uft5w4k/greymatter-6-1-streaming-store-orders-dashboard?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -567,7 +597,8 @@ func kpi(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Navigate("http://10.115.43.24:3000/"),
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.24:3000/d/F_8FShESk/kpi-de-seguimiento?orgId=4&refresh=1m"),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -596,7 +627,7 @@ func Servidores(ctx context.Context, url, user, password string) ([]byte, error)
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/jc_66BSIz/servidores?orgId=1&refresh=1m"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(4 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -624,7 +655,7 @@ func S11(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/G-6ygS3Vk/flr-s11-mcu?orgId=1&refresh=1m"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -652,7 +683,7 @@ func Operacion(ctx context.Context, url, user, password string) ([]byte, error) 
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/F2yEI13Vk/flr-operacion?orgId=1&from=now-7h&to=now&refresh=1m"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		chromedp.Sleep(3 * time.Second),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
