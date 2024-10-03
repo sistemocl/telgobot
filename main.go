@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"tel_gobot/scrapper"
+	"tel_gobot/sshclient"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -38,6 +39,9 @@ func main() {
 	admin_pass := os.Getenv("ADMIN_PASS")
 	admin2 := os.Getenv("ADMIN2")
 	pass2 := os.Getenv("PASS2")
+	gor := os.Getenv("GOR")
+	ip := os.Getenv("IP")
+	pass3 := os.Getenv("SBSPASS")
 
 	if token == "" || user == "" || password == "" {
 		fmt.Println("No se han definido las tres variables de entorno: TOKEN, USER o PASSWORD")
@@ -62,7 +66,9 @@ func main() {
 		"/servidores": "Grafana FLR servidores",
 		"/s11":        "panel S11",
 		"/operacion":  "FLR operacion",
+		"/zone":       "zone_orders SBS",
 		"/colas":      "colas pps",
+		"/erlang":     "erlang",
 	}
 
 	bot.Handle("/comandos", func(m *tb.Message) {
@@ -75,6 +81,26 @@ func main() {
 			reply.WriteString("\n")
 		}
 		bot.Send(m.Chat, reply.String())
+	})
+
+	bot.Handle("/erlang", func(m *tb.Message) {
+		// // Dividir el mensaje para extraer el comando a ejecutar
+		// parts := strings.Split(m.Text, " ")
+		// if len(parts) < 2 {
+		// 	bot.Send(m.Chat, "Debes especificar un comando para Erlang. Ejemplo: /ejemplo status")
+		// 	return
+		// }
+		// command := parts[1]
+
+		// Conectar a la consola de Erlang y ejecutar el comando
+		output, err := sshclient.ConexionErlang(gor, pass3, ip, "application:get_env(butler_server,streaming_pps_list).")
+		if err != nil {
+			bot.Send(m.Chat, fmt.Sprintf("Error conectando a Erlang: %v", err))
+			return
+		}
+
+		// Enviar la salida de Erlang como respuesta de texto
+		bot.Send(m.Chat, fmt.Sprintf("Salida de Erlang: %s", output))
 	})
 
 	bot.Handle("/tiendas", func(m *tb.Message) {
@@ -293,6 +319,43 @@ func main() {
 		cancel()
 
 	})
+
+	bot.Handle("/zone", func(m *tb.Message) {
+
+		ctx, cancel := chromedp.NewContext(context.Background())
+		defer cancel()
+
+		command := strings.ToLower(strings.ReplaceAll(m.Text, " ", ""))
+
+		mu.Lock()
+		if userLastCommand[int(m.Sender.ID)] == nil {
+			userLastCommand[int(m.Sender.ID)] = make(map[string]time.Time)
+		}
+		lastExecTime := userLastCommand[int(m.Sender.ID)]["/zone"]
+		mu.Unlock()
+
+		if time.Since(lastExecTime).Seconds() < 15 {
+			bot.Reply(m, "Debes esperar al menos 15 segundos entre ejecuciones de este comando.")
+			return
+		}
+		if command == "/zone" {
+			bot.Send(m.Chat, " Tomando captura")
+			screenshot, err := ZoneOrders(ctx, "http://10.115.43.24:3000/login", admin2, pass2)
+			if err != nil {
+				log.Printf("Error al tomar captura de pantalla: %v", err)
+				return
+			}
+			Photos_response(screenshot, m, bot)
+		} else {
+			bot.Send(m.Chat, "Comando no reconocido. Por favor, intenta nuevamente.")
+		}
+		mu.Lock()
+		userLastCommand[int(m.Sender.ID)]["/zone"] = time.Now()
+		mu.Unlock()
+		cancel()
+
+	})
+
 	bot.Handle("/servidores", func(m *tb.Message) {
 
 		ctx, cancel := chromedp.NewContext(context.Background())
@@ -460,7 +523,7 @@ func MLE(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/sDmADcSIk/mle-flr?orgId=1&refresh=30s"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(5 * time.Second),
+		chromedp.Sleep(7 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -488,7 +551,7 @@ func Soporte_FLR(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/F2yEI13Vk/flr-operacion?orgId=1&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(4 * time.Second),
+		chromedp.Sleep(5 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -544,7 +607,7 @@ func SBS(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.WaitVisible("body", chromedp.BySearch),
 		chromedp.Navigate("http://10.115.43.24:3000/d/LRJXk-NSk/reporte-de-cierre?orgId=4&from=now-7h&to=now&var-PpsId=All"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(5 * time.Second),
+		chromedp.Sleep(7 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -570,7 +633,7 @@ func SBS_General(ctx context.Context, url, user, password string) ([]byte, error
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.24:3000/d/1-Uft5w4k/greymatter-6-1-streaming-store-orders-dashboard?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(5 * time.Second),
+		chromedp.Sleep(7 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -598,7 +661,7 @@ func kpi(ctx context.Context, url, user, password string) ([]byte, error) {
 		chromedp.Sleep(1 * time.Second),
 		chromedp.Navigate("http://10.115.43.24:3000/d/F_8FShESk/kpi-de-seguimiento?orgId=4&refresh=1m"),
 		chromedp.WaitVisible("body", chromedp.BySearch),
-		chromedp.Sleep(5 * time.Second),
+		chromedp.Sleep(9 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
@@ -684,6 +747,32 @@ func Operacion(ctx context.Context, url, user, password string) ([]byte, error) 
 		chromedp.Navigate("http://10.115.43.118:3008/il/grafana/d/F2yEI13Vk/flr-operacion?orgId=1&from=now-7h&to=now&refresh=1m"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
 		chromedp.Sleep(5 * time.Second),
+		chromedp.FullScreenshot(&buf, 100),
+	}
+
+	err := chromedp.Run(ctx, task)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return buf, nil
+}
+
+func ZoneOrders(ctx context.Context, url, user, password string) ([]byte, error) {
+	var buf []byte
+
+	task := chromedp.Tasks{
+		emulation.SetDeviceMetricsOverride(1920, 1080, 1, false),
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("input[name=password]", chromedp.BySearch),
+		chromedp.SendKeys("input[name=user]", user, chromedp.BySearch),
+		chromedp.SendKeys("input[name=password]", password, chromedp.BySearch),
+		chromedp.Click(`button[aria-label="Login button"]`, chromedp.BySearch),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(1 * time.Second),
+		chromedp.Navigate("http://10.115.43.24:3000/d/HLk0BAHSk/zone-orders-by-store-granel-and-store?orgId=4&refresh=1m"),
+		chromedp.WaitVisible("body", chromedp.BySearch),
+		chromedp.Sleep(11 * time.Second),
 		chromedp.FullScreenshot(&buf, 100),
 	}
 
